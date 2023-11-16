@@ -7,22 +7,32 @@
 
 import AsyncHTTPClient
 import Foundation
+import NIOCore
 
 public class NetworkManager {
     public static let shared = NetworkManager()
-
+    
+    private let httpClient = HTTPClient(eventLoopGroupProvider: .singleton)
+    
     private init() {}
+    
+    deinit {
+        try? httpClient.syncShutdown()
+    }
 
-    public func fetchData<T: Decodable>(_ endpoint: Endpoint, responseType: T.Type) async throws -> T {
-        // Implement your networking code here using AsyncHTTPClient
-        // You can use the `endpoint` enum to construct the request
-        // and parse the response into the specified `responseType`.
-        // Return the parsed data.
-        // Example:
-        // let response = try await HTTPClient.shared.get(url: endpoint.url).flatMapThrowing { try $0.content.decode(T.self) }.get()
-        // return response
+    func fetch(endpoint: Endpoint) async throws -> Data {
+        guard let url = URL(string: endpoint.url) else {
+            throw URLError(.badURL)
+        }
         
+        let request = try HTTPClient.Request(url: url, method: endpoint.httpMethod)
         
-        fatalError("Not implemented")
+        let response = try await httpClient.execute(request: request, deadline: .now() + .seconds(30)).get()
+        
+        guard response.status == .ok else {
+            throw URLError(.badServerResponse)
+        }
+        
+        return Data(buffer: response.body ?? ByteBuffer())
     }
 }
